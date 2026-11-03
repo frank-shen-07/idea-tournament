@@ -1,0 +1,9 @@
+{
+  "name": "idea-tournament",
+  "version": "1.0.0",
+  "description": "Run a tournament between hackathon ideas: rubric + judge panel scoring, jury trials, revisions and a leaderboard.",
+  "author": { "name": "Hanyu Shen", "url": "https://github.com/frank-shen-07" },
+  "repository": "https://github.com/frank-shen-07/idea-tournament",
+  "license": "MIT",
+  "keywords": ["hackathon", "ideation", "evaluation", "skills"]
+}

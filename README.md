@@ -16,17 +16,30 @@ Optional: Python 3 with matplotlib for the score chart.
 
 ## Install
 
-```bash
-git clone https://github.com/frank-shen-07/idea-tournament ~/.claude/skills/idea-tournament
+Pick one.
+
+**Claude Code plugin** (recommended, easy to update):
+
 ```
+/plugin marketplace add frank-shen-07/idea-tournament
+/plugin install idea-tournament@idea-tournament
+```
+
+**skillfish:**
+
+```bash
+npx skillfish add frank-shen-07/idea-tournament idea-tournament
+```
+
+**Manual:** copy `skills/idea-tournament/` into `~/.claude/skills/`.
 
 Then in Claude Code, ask something like: *"Use idea-tournament to evaluate our hackathon ideas in ideas.pdf against the brief in hackathon.pdf."*
 
 ## What's inside
 
-- `SKILL.md`: the process (context file → idea cards → scoring → court trials → leaderboard → revise and repeat)
-- `scripts/leaderboard.py`: builds `LEADERBOARD.md` and `scores.png` from `scores.json`
-- `scripts/advance.sh`: drives several court trials at once
+- `skills/idea-tournament/SKILL.md`: the process (context file → idea cards → scoring → court trials → leaderboard → revise and repeat)
+- `skills/idea-tournament/scripts/leaderboard.py`: builds `LEADERBOARD.md` and `scores.png` from `scores.json`
+- `skills/idea-tournament/scripts/advance.sh`: drives several court trials at once
 
 ## License
 

@@ -98,7 +98,7 @@ cd idea-lab/trials/<slug> && python3 ~/.claude/skills/court/court.py init --case
 ```
 
 Then follow the court skill (opening → rebuttal → jury → judge). Running several trials at once:
-- `scripts/advance.sh <trials-dir> <state-file> <slug>...` prints every brief that is ready and not yet launched,
+- `<skill base directory>/scripts/advance.sh <trials-dir> <state-file> <slug>...` prints every brief that is ready and not yet launched,
   and renders finished verdicts. Run it after each batch of agents completes; launch one Agent per printed brief
   with the prompt `Read <brief> and follow it exactly. It is your whole brief.`
 - Respect the concurrency limit (about 20 sub-agents at once): queue the rest and launch as slots free.
@@ -113,7 +113,7 @@ Keep `scores.json`:
  "untried-slug": {"rubric": 46, "judges": 24, "not_guilty": null, "verdict": "not tried"}}
 ```
 
-Then run `python3 scripts/leaderboard.py idea-lab` → writes `LEADERBOARD.md` and `scores.png`.
+Then run `python3 <skill base directory>/scripts/leaderboard.py idea-lab` → writes `LEADERBOARD.md` and `scores.png`.
 
 Composite (0–100):
 - Tried: 40% × rubric/60 + 30% × judges/30 + 30% × not-guilty share.

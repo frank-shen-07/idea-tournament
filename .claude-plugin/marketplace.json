@@ -1,0 +1,16 @@
+{
+  "name": "idea-tournament",
+  "owner": { "name": "Hanyu Shen", "url": "https://github.com/frank-shen-07" },
+  "metadata": { "description": "The idea-tournament skill for Claude Code" },
+  "plugins": [
+    {
+      "name": "idea-tournament",
+      "description": "Run a tournament between hackathon ideas: rubric + judge panel scoring, jury trials, revisions and a leaderboard.",
+      "version": "1.0.0",
+      "author": { "name": "Hanyu Shen", "url": "https://github.com/frank-shen-07" },
+      "license": "MIT",
+      "category": "productivity",
+      "source": "./"
+    }
+  ]
+}
