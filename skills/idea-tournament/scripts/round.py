@@ -11,6 +11,7 @@ Usage: python3 round.py <lab> <round> [options]
   --pairs  MODEL   head-to-heads                 (default z-ai/glm-5.3-flash)
   --court  MODEL   trials                        (default z-ai/glm-5.3-flash)
   --new 3  --scorers 3  --pair-judges 1  --max-trials 2  --no-revise
+  --anchors a,b    first round only: the fixed anchor cards (default: up to 3 starting ideas in <lab>/ideas)
   --preflight      only check the OpenRouter key and the claude CLI, then stop (spends nothing)
 MODEL is claude:<alias> (e.g. claude:sonnet, claude:haiku) or an OpenRouter model id.
 
@@ -139,12 +140,20 @@ def main():
     pair_judges, max_trials = int(opt("--pair-judges", 1)), int(opt("--max-trials", 2))
     run = Runner(lab, rnd)
     sp = os.path.join(lab, "scores.json")
-    S = json.load(open(sp))
+    os.makedirs(os.path.join(lab, "ideas"), exist_ok=True)
+    S = json.load(open(sp)) if os.path.exists(sp) else {}
+    cards = lambda: sorted(f[:-8] for f in os.listdir(os.path.join(lab, "ideas"))  # noqa: E731
+                           if f.endswith(".card.md") and not f.endswith(".long.card.md"))
+    for s in cards():  # starting ideas the user brought (or any card added by hand) join the board
+        S.setdefault(s, {}).setdefault("family", s)
     anchors = list(S.get("_anchors", {}).get("rubric", {}))
+    if not anchors:  # first round: fixed anchor cards measure scoring drift from now on (default: the starting ideas)
+        anchors = opt("--anchors", ",".join(cards()[:3])).split(",") if cards() else []
+        anchors = [x for x in anchors if x]
     events = []
 
     def board():
-        return [s for s, d in S.items() if not s.startswith("_") and os.path.exists(os.path.join(lab, "ideas", f"{s}.card.md"))]
+        return [s for s in S if not s.startswith("_") and os.path.exists(os.path.join(lab, "ideas", f"{s}.card.md"))]
 
     def ranked():
         rows = [(s, composite(S[s])) for s in board() if composite(S[s]) is not None]
@@ -164,6 +173,8 @@ def main():
     pairs = [tuple(p) for p in st.get("pairs", [])]  # (name, incumbent, challenger)
 
     def setup_pair(inc, chal):
+        if any(c == chal and i == inc for _, i, c in pairs):  # already set up (a resumed round): never redo it
+            return []
         name = f"r{rnd}-{chal}-vs-{inc}"
         out = sh(os.path.join(HERE, "pairwise.py"), "setup", lab, name, inc, chal, "--judges", str(pair_judges))
         pairs.append((name, inc, chal))
@@ -240,16 +251,22 @@ def main():
         lead_c = composite(S[leader]) if leader else None
         extra = [s for s in new if lead_c is not None and (composite(S[s]) or 0) > lead_c]
         run.jobs(M["pairs"], [b for s in extra for b in setup_pair(leader, s)])
+        results = []
         for name, inc, chal in pairs:
             out = sh(os.path.join(HERE, "pairwise.py"), "tally", lab, name)
             won = "challenger replaces" in out
             cc, ci = composite(S[chal]) or 0, composite(S[inc]) or 0
-            ok = won and cc >= ci
-            S[chal]["h2h"] = {"vs": inc, "round": rnd, "won_pick": won, "replaces": ok}
-            if ok:
-                S["_leader"] = chal
+            results.append((chal, inc, won, won and cc >= ci, cc, ci))
+        # Several challengers can beat the leader; only the highest-scoring winner takes the lead.
+        eligible = [r for r in results if r[3]]
+        new_leader = max(eligible, key=lambda r: r[4])[0] if eligible else None
+        if new_leader:
+            S["_leader"] = new_leader
+        for chal, inc, won, ok, cc, ci in results:
+            S[chal]["h2h"] = {"vs": inc, "round": rnd, "won_pick": won, "replaces": chal == new_leader}
             events.append(f"head-to-head {chal} vs {inc}: " + (
-                "challenger wins and replaces the leader" if ok else
+                "challenger wins and becomes the new leader" if chal == new_leader else
+                f"challenger wins too, but {new_leader} scores higher" if ok else
                 f"challenger won the picks but scores lower ({cc:.1f} vs {ci:.1f}); leader stays"
                 if won else "leader stays"))
         json.dump(S, open(sp, "w"), indent=1)

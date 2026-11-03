@@ -1,6 +1,6 @@
 {
   "name": "idea-tournament",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Run a tournament between hackathon ideas: new ideas each round, blind rubric + judge panel scoring, jury trials, head-to-heads and a leaderboard. Self-contained.",
   "author": { "name": "Hanyu Shen", "url": "https://github.com/frank-shen-07" },
   "repository": "https://github.com/frank-shen-07/idea-tournament",
