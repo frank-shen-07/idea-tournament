@@ -27,3 +27,7 @@ Then in Claude Code, ask something like: *"Use idea-tournament to evaluate our h
 - `SKILL.md`: the process (context file → idea cards → scoring → court trials → leaderboard → revise and repeat)
 - `scripts/leaderboard.py`: builds `LEADERBOARD.md` and `scores.png` from `scores.json`
 - `scripts/advance.sh`: drives several court trials at once
+
+## License
+
+MIT
