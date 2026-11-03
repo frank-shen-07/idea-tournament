@@ -11,6 +11,7 @@ Usage: python3 round.py <lab> <round> [options]
   --pairs  MODEL   head-to-heads                 (default z-ai/glm-5.3-flash)
   --court  MODEL   trials                        (default z-ai/glm-5.3-flash)
   --new 3  --scorers 3  --pair-judges 1  --max-trials 2  --no-revise
+  --preflight      only check the OpenRouter key and the claude CLI, then stop (spends nothing)
 MODEL is claude:<alias> (e.g. claude:sonnet, claude:haiku) or an OpenRouter model id.
 
 Rules applied (see SKILL.md): at least --new brand-new ideas; the leader is revised unless its family was revised in
@@ -131,6 +132,9 @@ def main():
     M = {"ideas": opt("--ideas", "claude:sonnet"), "score": opt("--score", "claude:sonnet"),
          "pairs": opt("--pairs", "z-ai/glm-5.3-flash"), "court": opt("--court", "z-ai/glm-5.3-flash")}
     preflight(M)
+    if "--preflight" in a:  # check keys and tools only, then stop
+        print("ready: every role has what it needs (" + ", ".join(f"{r}={m}" for r, m in M.items()) + ")")
+        return
     n_new, n_scorers = int(opt("--new", 3)), int(opt("--scorers", 3))
     pair_judges, max_trials = int(opt("--pair-judges", 1)), int(opt("--max-trials", 2))
     run = Runner(lab, rnd)
