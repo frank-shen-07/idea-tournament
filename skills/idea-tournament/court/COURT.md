@@ -1,21 +1,6 @@
----
-name: court
-description: >-
-  Put an idea on trial in front of a jury of 12 Claudes. A prosecutor Claude
-  argues it fails, a defense Claude argues it works, they rebut each other,
-  12 juror Claudes with different backgrounds vote on their own, and a judge
-  Claude reads the verdict and the conditions that would flip it. Use when the
-  user wants honest pushback instead of agreement, says Claude just agrees with
-  everything, asks "is this a good idea", wants an idea, plan, pitch or claim
-  stress-tested, or says "court" or "put it on trial".
-argument-hint: "[--jury N | --quick] [--seed S] <the idea, plan or claim>"
-license: MIT
-metadata:
-  author: "Alex Chen (@nocodealex)"
-  homepage: "https://chen.media"
-  source: "https://github.com/alexyc9381/court-skill"
-  version: "1.0.0"
----
+<!-- Reference copy of the court skill's instructions (alexyc9381/court-skill, MIT, (c) 2026 Alex Chen).
+Inside idea-tournament: ${CLAUDE_SKILL_DIR}/court.py means <idea-tournament skill base directory>/court/court.py,
+and the court-runner agent may be used instead of general-purpose (see idea-tournament SKILL.md, Step 4). -->
 
 # court
 

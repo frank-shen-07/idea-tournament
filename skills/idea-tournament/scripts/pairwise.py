@@ -3,8 +3,7 @@
 
 setup: python3 pairwise.py setup <lab> <name> <incumbent-slug> <challenger-slug> [--judges 3]
   Writes blind cards and one self-contained brief per (judge, order); prints the brief paths. Launch one fresh
-  idea-judge agent per brief with the brief's path; save each JSON reply with:
-  python3 record.py pair <lab> <name> <judge> <order> < reply.json
+  idea-judge agent per brief with the brief's path; it writes its own result-j<J>-o<O>.json.
 tally: python3 pairwise.py tally <lab> <name>
   Each judge sees both orders. A judge whose two picks disagree (picked the same position twice) counts as a tie.
   The challenger replaces the incumbent only if it wins a strict majority of judges.
@@ -23,7 +22,7 @@ Decide which idea would do better with the event's judges, using the judging cri
 which is the better idea to build in the time available. Ignore length, polish and confident wording: judge the
 idea, not the writing.
 
-Reply with ONE JSON object and nothing else:
+Write ONE JSON object and nothing else to {result}, then reply "done":
 {{"pick": 1 or 2, "confidence": "low" | "medium" | "high", "reason": "<one sentence>"}}
 
 # Event context
@@ -56,11 +55,12 @@ def setup(lab, name, inc, chal, judges):
         for order in (1, 2):
             inc_first = first_is_inc if order == 1 else not first_is_inc
             f, s = (cards[inc], cards[chal]) if inc_first else (cards[chal], cards[inc])
+            res = os.path.abspath(os.path.join(out, f"result-j{j}-o{order}.json"))
             meta = os.path.join(out, f"order-j{j}-o{order}.json")
             json.dump({"option1": inc if inc_first else chal}, open(meta, "w"))
             bp = os.path.join(out, f"brief-j{j}-o{order}.md")
             open(bp, "w").write(BRIEF.format(context=open(ctx).read().strip(), first=open(f).read().strip(),
-                                             second=open(s).read().strip()))
+                                             second=open(s).read().strip(), result=res))
             print(os.path.abspath(bp))
 
 

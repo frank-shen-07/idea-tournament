@@ -5,7 +5,7 @@
 set -u
 T=$1; STATE=$2; shift 2
 HERE="$(cd "$(dirname "$0")" && pwd)"
-C="${COURT_PY:-$HERE/../../court/court.py}"
+C="${COURT_PY:-$HERE/../court/court.py}"
 [ -f "$C" ] || C="$HOME/.claude/skills/court/court.py"
 touch "$STATE"
 for s in "$@"; do
