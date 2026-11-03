@@ -8,7 +8,6 @@ Every idea is scored blind by fresh scorers (a strict rubric and a simulated jud
 
 | What | Used for | Install |
 |---|---|---|
-| `court` skill | Adversarial trial: prosecutor, defense, jury, judge | Clone https://github.com/alexyc9381/court-skill into `~/.claude/skills/court` |
 | `hackathon-idea-evaluator` skill | Rubric score /60 | `npx skillfish add hameed0342j/svh hackathon-idea-evaluator` |
 | `agents-data-ai` plugin (`hackathon-ai-strategist` agent) | Judge panel and new challenger ideas | `/plugin marketplace add davepoon/buildwithclaude` then `/plugin install agents-data-ai@buildwithclaude` |
 
@@ -28,10 +27,12 @@ Pick one.
 **skillfish:**
 
 ```bash
-npx skillfish add frank-shen-07/idea-tournament idea-tournament
+npx skillfish add frank-shen-07/idea-tournament --all
 ```
 
-**Manual:** copy `skills/idea-tournament/` into `~/.claude/skills/`.
+(`--all` installs both skills: `idea-tournament` and the bundled `court`.)
+
+**Manual:** copy both `skills/idea-tournament/` and `skills/court/` into `~/.claude/skills/`.
 
 Then in Claude Code, ask something like: *"Use idea-tournament to evaluate our hackathon ideas in ideas.pdf against the brief in hackathon.pdf."*
 
@@ -46,6 +47,12 @@ Then in Claude Code, ask something like: *"Use idea-tournament to evaluate our h
 - `skills/idea-tournament/scripts/leaderboard.py`: builds `LEADERBOARD.md` and `scores.png` from `scores.json`
 - `skills/idea-tournament/scripts/advance.sh`: drives several court trials at once
 
+## Bundled: court skill
+
+The `court` skill (prosecutor, defense, jury, judge) is included unmodified from
+[alexyc9381/court-skill](https://github.com/alexyc9381/court-skill) by Alex Chen, under its MIT License
+(`skills/court/LICENSE`). Thanks to its author.
+
 ## License
 
-MIT
+MIT (this repo's own files). The bundled `skills/court` keeps its own MIT License.

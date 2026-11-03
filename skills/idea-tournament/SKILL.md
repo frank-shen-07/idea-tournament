@@ -14,7 +14,7 @@ Check these are installed before starting. If one is missing, tell the user the 
 
 | What | Used for | Install |
 |---|---|---|
-| `court` skill | Adversarial trial: prosecutor, defense, jury, judge | Clone https://github.com/alexyc9381/court-skill into `~/.claude/skills/court` |
+| `court` skill | Adversarial trial: prosecutor, defense, jury, judge | **Bundled** in this plugin (`skills/court`, MIT, by Alex Chen). Nothing to install. |
 | `hackathon-idea-evaluator` skill | Rubric score /60 (Novelty, Feasibility, Scalability, Impact, Demo-ability, Domain Fit) | `npx skillfish add hameed0342j/svh hackathon-idea-evaluator` |
 | `agents-data-ai` plugin (provides the `agents-data-ai:hackathon-ai-strategist` agent) | Simulated judge panel, and generating challenger ideas | `/plugin marketplace add davepoon/buildwithclaude` then `/plugin install agents-data-ai@buildwithclaude` |
 
@@ -125,11 +125,13 @@ For the top ideas, run the `court` skill with a **fixed jury so trials are compa
 
 ```bash
 mkdir -p idea-lab/trials/<slug>/.court && cp idea-lab/ideas/<slug>.case.md idea-lab/trials/<slug>/.court/case.md
-cd idea-lab/trials/<slug> && python3 ~/.claude/skills/court/court.py init --case-file .court/case.md --quick --seed 9
+cd idea-lab/trials/<slug> && python3 <court skill base directory>/court.py init --case-file .court/case.md --quick --seed 9
 ```
 
-Then follow the court skill (opening → rebuttal → jury → judge). Running several trials at once:
-- `<skill base directory>/scripts/advance.sh <trials-dir> <state-file> <slug>...` prints every brief that is ready and not yet launched,
+`<court skill base directory>` is the bundled `skills/court` folder next to this skill (or `~/.claude/skills/court`
+if installed separately). Then follow the court skill (opening → rebuttal → jury → judge). Running several trials at once:
+- `<skill base directory>/scripts/advance.sh <trials-dir> <state-file> <slug>...` (finds the bundled `court.py`
+  automatically; set `COURT_PY` to override) prints every brief that is ready and not yet launched,
   and renders finished verdicts. Run it after each batch of agents completes; launch one Agent per printed brief
   with the prompt `Read <brief> and follow it exactly. It is your whole brief.`
 - Respect the concurrency limit (about 20 sub-agents at once): queue the rest and launch as slots free.

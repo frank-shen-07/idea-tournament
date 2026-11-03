@@ -4,7 +4,9 @@
 # Usage: advance.sh <trials-dir> <state-file> <slug> [<slug>...]
 set -u
 T=$1; STATE=$2; shift 2
-C="${COURT_PY:-$HOME/.claude/skills/court/court.py}"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+C="${COURT_PY:-$HERE/../../court/court.py}"
+[ -f "$C" ] || C="$HOME/.claude/skills/court/court.py"
 touch "$STATE"
 for s in "$@"; do
   cd "$T/$s" || continue
