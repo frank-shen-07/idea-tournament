@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run idea-tournament jobs on any OpenRouter model instead of Claude Code sub-agents.
+"""Run idea-tournament jobs on Claude (headless `claude -p`) or any OpenRouter model, with no sub-agents.
 
 Every job is a brief file. The runner pastes in every existing file the brief names by absolute path (inputs),
 asks the model for the content of every path that does not exist yet (outputs), writes those files, checks the
@@ -7,11 +7,17 @@ format, retries once, and logs exact tokens and cost. Jobs whose outputs all exi
 
 Usage:
   run_jobs.py --model z-ai/glm-5.3-flash JOB [JOB ...]       # JOB = brief path, or path:letter for packed-score.md
+  run_jobs.py --model claude:sonnet JOB [JOB ...]            # Claude through `claude -p` (your Claude Code login)
   run_jobs.py --model ... --court <trials-dir> <slug> [...]   # run whole trials: advance, run, repeat until done
-Options: --concurrency 8  --max-tokens 16000  --log openrouter-usage.jsonl  --dry-run
-Key: $OPENROUTER_API_KEY, else the first line of ~/.config/openrouter/key. The key is never printed or logged.
+Options: --concurrency 8  --max-tokens 16000  --log usage.jsonl  --dry-run
+OpenRouter key: $OPENROUTER_API_KEY, else the first line of ~/.config/openrouter/key. Never printed or logged.
+Claude jobs run `claude -p` with no tools, settings, MCP servers or session file: one model call per job, and the
+exact cost Claude Code reports is logged (on a subscription that cost counts against usage limits instead of a bill).
 """
-import concurrent.futures as cf, json, os, re, ssl, subprocess, sys, time, urllib.error, urllib.request
+import concurrent.futures as cf, json, os, re, ssl, subprocess, sys, tempfile, time, urllib.error, urllib.request
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from blind import strip_card
 
 API = "https://openrouter.ai/api/v1/chat/completions"
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -42,7 +48,9 @@ def tls_context():
 TLS = tls_context()
 
 
-def api_key():
+def api_key(model):
+    if model.startswith("claude:"):
+        return None
     k = os.environ.get("OPENROUTER_API_KEY", "").strip()
     if not k:
         p = os.path.expanduser("~/.config/openrouter/key")
@@ -91,6 +99,9 @@ def strip_fences(t):
     return m.group(1).strip() if m else t
 
 
+CARD_CAP = 450
+
+
 def check(path, content, ids=()):
     if path.endswith(".json"):
         data = json.loads(re.search(r"\{.*\}", content, re.S).group(0))
@@ -104,11 +115,18 @@ def check(path, content, ids=()):
             raise ValueError("'pick' must be 1 or 2")
     if "/jury/" in path and not re.search(r"^VOTE:\s*(NOT GUILTY|GUILTY)", content, re.M):
         raise ValueError("juror file needs a 'VOTE: GUILTY' or 'VOTE: NOT GUILTY' line")
-    if path.endswith(".card.md") and not content.lstrip().startswith("Build \""):
-        raise ValueError('card must start with: Build "<Name>"')
+    if path.endswith(".card.md"):
+        if not content.lstrip().startswith("Build \""):
+            raise ValueError('card must start with: Build "<Name>"')
+        words = len(strip_card(content, "Idea XXX").split())  # counted exactly as blind.py counts it
+        if words > CARD_CAP:
+            raise ValueError(f"{os.path.basename(path)} is {words} words; the cap is {CARD_CAP}. Rewrite it to about "
+                             f"{int(CARD_CAP * 0.8)} words: cut repetition and asides, keep every mechanism")
 
 
 def call(model, messages, max_tokens, key):
+    if model.startswith("claude:"):
+        return call_claude(model.split(":", 1)[1], messages)
     body = json.dumps({"model": model, "messages": messages, "max_tokens": max_tokens,
                        "usage": {"include": True}}).encode()
     for attempt in range(5):
@@ -129,6 +147,35 @@ def call(model, messages, max_tokens, key):
             raise
 
 
+def call_claude(model, messages):
+    """One headless Claude Code call with no tools; returns the same shape as an OpenRouter response."""
+    system = messages[0]["content"]
+    convo = messages[1:]
+    prompt = convo[0]["content"] if len(convo) == 1 else "\n\n".join(
+        f"<{m['role']}>\n{m['content']}\n</{m['role']}>" for m in convo) + "\n\nReply as the assistant to the last user turn."
+    cmd = ["claude", "-p", "--model", model, "--tools", "", "--system-prompt", system, "--setting-sources", "",
+           "--strict-mcp-config", "--no-session-persistence", "--disable-slash-commands", "--output-format", "json"]
+    for attempt in range(3):
+        # Every prompt is used once, so a cache write (billed at 2x input for Claude Code's 1-hour cache) is pure waste.
+        r = subprocess.run(cmd, input=prompt, capture_output=True, text=True, cwd=tempfile.gettempdir(), timeout=900,
+                           env={**os.environ, "DISABLE_PROMPT_CACHING": "1"})
+        try:
+            d = json.loads(r.stdout)
+        except json.JSONDecodeError:
+            d = {"is_error": True, "result": (r.stderr or r.stdout)[:300]}
+        if not d.get("is_error"):
+            break
+        time.sleep(5 * (attempt + 1))
+    else:
+        raise RuntimeError(f"claude -p failed: {str(d.get('result'))[:300]}")
+    u = d.get("usage", {})
+    return {"choices": [{"message": {"content": d.get("result") or ""},
+                         "finish_reason": "length" if d.get("stop_reason") == "max_tokens" else "stop"}],
+            "usage": {"prompt_tokens": u.get("input_tokens", 0) + u.get("cache_creation_input_tokens", 0)
+                      + u.get("cache_read_input_tokens", 0),
+                      "completion_tokens": u.get("output_tokens", 0), "cost": d.get("total_cost_usd", 0.0)}}
+
+
 def run_one(job, model, max_tokens, key, log):
     path, brief, inputs, outputs = plan(job)
     if not outputs:
@@ -139,7 +186,7 @@ def run_one(job, model, max_tokens, key, log):
     messages = build_messages(brief, inputs, outputs)
     usage = {"prompt_tokens": 0, "completion_tokens": 0, "cost": 0.0}
     err = None
-    for attempt in range(2):
+    for attempt in range(3):
         resp = call(model, messages, max_tokens, key)
         u = resp.get("usage", {})
         for k in usage:
@@ -179,7 +226,8 @@ def run_one(job, model, max_tokens, key, log):
     return f"{'ok   ' if err is None else 'FAIL '} {job}  {tok} tok  ${usage['cost']:.5f}" + (f"  ({err})" if err else "")
 
 
-def run_many(jobs, a, key):
+def run_many(jobs, a, key, out=None):
+    out = out or (lambda s: print(s, flush=True))
     totals = []
     with cf.ThreadPoolExecutor(a["concurrency"]) as ex:
         def safe(j):
@@ -188,26 +236,27 @@ def run_many(jobs, a, key):
             except Exception as e:  # one bad job must not stop the others
                 return f"FAIL  {j}  ({type(e).__name__}: {str(e)[:200]})"
         for line in ex.map(safe, jobs):
-            print(line, flush=True)
+            out(line)
             totals.append(line)
     return totals
 
 
-def court(trials, slugs, a, key):
+def court(trials, slugs, a, key, out=None):
+    out = out or (lambda s: print(s, flush=True))
     state = os.path.join(trials, ".runner-launched.txt")
     for _ in range(12):
-        out = subprocess.run(["bash", os.path.join(HERE, "advance.sh"), trials, state, *slugs],
-                             capture_output=True, text=True).stdout.split()
-        briefs = [b for b in out if b.endswith(".md")]
+        ready = subprocess.run(["bash", os.path.join(HERE, "advance.sh"), trials, state, *slugs],
+                               capture_output=True, text=True).stdout.split()
+        briefs = [b for b in ready if b.endswith(".md")]
         if not briefs:
-            print("all trials finished")
+            out("all trials finished")
             return
-        run_many(briefs, a, key)
+        run_many(briefs, a, key, out)
 
 
 def main():
     argv = sys.argv[1:]
-    a = {"model": None, "concurrency": 8, "max_tokens": 16000, "log": "openrouter-usage.jsonl", "dry": False}
+    a = {"model": None, "concurrency": 8, "max_tokens": 16000, "log": "usage.jsonl", "dry": False}
     rest = []
     i = 0
     while i < len(argv):
@@ -230,7 +279,7 @@ def main():
             words = len(brief.split()) + sum(len(open(p).read().split()) for p in inputs)
             print(f"{j}\n  inputs:  {inputs}\n  outputs: {outputs}\n  ~{int(words * 1.35)} prompt tokens")
         return
-    key = api_key()
+    key = api_key(a["model"])
     if rest[0] == "--court":
         court(rest[1], rest[2:], a, key)
     else:

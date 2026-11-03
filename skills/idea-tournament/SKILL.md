@@ -13,7 +13,7 @@ yourself; sub-agents do that. Everything needed is bundled in this plugin:
 |---|---|
 | `rubric.md` | The /60 rubric (Novelty, Feasibility, Scalability, Impact, Demo-ability, Domain fit) with calibration rules |
 | `court/` | Trial engine: prosecutor, defense, jury, judge (`court.py`, from alexyc9381/court-skill, MIT; instructions in `court/COURT.md`) |
-| `scripts/` | `blind.py`, `pack.py`, `record.py`, `scores.py`, `pairwise.py`, `advance.sh`, `leaderboard.py`, `run_jobs.py` (OpenRouter runner) |
+| `scripts/` | `round.py` (a whole round in one command), `run_jobs.py` (job runner: Claude via `claude -p`, or OpenRouter), `blind.py`, `pack.py`, `record.py`, `scores.py`, `pairwise.py`, `advance.sh`, `leaderboard.py` |
 | Agents `idea-writer`, `idea-judge`, `court-runner` | Lightweight Sonnet sub-agents with minimal tools: they read one file and write or reply, so each costs a fraction of a general-purpose agent |
 
 Below, `SKILL` means this skill's base directory (Claude Code prints it when the skill loads). Python 3 is
@@ -45,6 +45,24 @@ estimate; after it, report what it used.
 Token rules that apply everywhere: one packed input file per agent; agents write their output to files and reply
 one word, so you never read or retype their output; never reuse or
 message an old agent; launch independent agents in one message; keep your own updates to a line or two.
+
+## Run each round with one command (default)
+
+Your own turns are the most expensive part of a round: each one re-reads the whole conversation. So after step 1
+and the starting cards, run every round as ONE background command and read only its summary:
+
+```bash
+python3 SKILL/scripts/round.py idea-lab <N> [--ideas claude:sonnet] [--score claude:sonnet] \
+    [--pairs z-ai/glm-5.3-flash] [--court z-ai/glm-5.3-flash] [--new 3] [--scorers 3] [--max-trials 2]
+```
+
+It does steps A to E below with no sub-agents: Claude jobs run through `claude -p` (no tools, one call each),
+OpenRouter jobs through the API. Every reply is checked (JSON, every blind ID scored, juror `VOTE:` line, card
+format and the 450-word cap counted exactly) and retried; exact tokens and cost go to `usage-round<N>.jsonl`. It
+prints the top 5, what happened (new ideas, head-to-heads, trials, drift) and the cost per step and model, in about
+20 lines. Report those lines; do not open the job files. Start the next round only after reading the summary.
+Use the step-by-step agent flow below only to debug a step. Trial rule in `round.py`: every untried idea in the
+top 3 (up to `--max-trials`), so no top-3 idea is ranked on an assumed verdict.
 
 ## Running jobs on OpenRouter
 
