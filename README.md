@@ -2,7 +2,7 @@
 
 A [Claude Code](https://claude.com/claude-code) skill that runs a tournament between hackathon (or product) ideas until the best one wins.
 
-Every idea is scored by a strict rubric and a simulated judge panel; the leaders are put on trial in front of a jury of Claudes; weak ideas are revised or replaced; and a leaderboard and chart track the result.
+Every idea is scored blind by fresh scorers (a strict rubric and a simulated judge panel), with anchor cards to catch rating drift; the leaders are put on trial in front of a jury of Claudes; weak ideas are revised or replaced; and a leaderboard and chart track the result.
 
 ## Requirements
 
@@ -38,6 +38,9 @@ Then in Claude Code, ask something like: *"Use idea-tournament to evaluate our h
 ## What's inside
 
 - `skills/idea-tournament/SKILL.md`: the process (context file → idea cards → scoring → court trials → leaderboard → revise and repeat)
+- `skills/idea-tournament/scripts/blind.py`: anonymises cards (no names, versions or history; word cap)
+- `skills/idea-tournament/scripts/scores.py`: median of 3 fresh scorers, anchor-based drift correction
+- `skills/idea-tournament/scripts/pairwise.py`: blind head-to-heads in both orders; a revision must win to replace the leader
 - `skills/idea-tournament/scripts/leaderboard.py`: builds `LEADERBOARD.md` and `scores.png` from `scores.json`
 - `skills/idea-tournament/scripts/advance.sh`: drives several court trials at once
 

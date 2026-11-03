@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Build LEADERBOARD.md (and scores.png if matplotlib is installed) from <lab>/scores.json.
 
-scores.json: {"slug": {"rubric": 0-60, "judges": 0-30, "not_guilty": 0-6 or null, "verdict": "NOT GUILTY"}}
+scores.json: {"slug": {"rubric": 0-60, "judges": 0-30, "not_guilty": n or null, "jurors": 6, "verdict": "NOT GUILTY"}}
+Keys starting with "_" (e.g. "_anchors") are ignored.
 Usage: python3 leaderboard.py idea-lab [--jury 6]
 """
 import json, os, sys
@@ -12,21 +13,23 @@ data = json.load(open(os.path.join(lab, "scores.json")))
 
 rows = []
 for slug, d in data.items():
-    r, j, ng = d["rubric"], d["judges"], d.get("not_guilty")
+    if slug.startswith("_") or d.get("rubric") is None or d.get("judges") is None:
+        continue
+    r, j, ng, nj = d["rubric"], d["judges"], d.get("not_guilty"), d.get("jurors", jury)
     if ng is None:
         parts = (50 * r / 60, 50 * j / 30, 0)
     else:
-        parts = (40 * r / 60, 30 * j / 30, 30 * ng / jury)
-    rows.append((slug, r, j, ng, d.get("verdict", "not tried" if ng is None else ""), parts, sum(parts)))
+        parts = (40 * r / 60, 30 * j / 30, 30 * ng / nj)
+    rows.append((slug, r, j, ng, d.get("verdict", "not tried" if ng is None else ""), parts, sum(parts), nj))
 rows.sort(key=lambda x: -x[6])
 
 out = ["# Idea leaderboard", "",
-       f"Composite: tried = 40% rubric (/60) + 30% judge panel (/30) + 30% not-guilty share ({jury}-juror court); "
+       f"Composite: tried = 40% rubric (/60) + 30% judge panel (/30) + 30% not-guilty share (jurors per court, default {jury}; repeat trials add their votes); "
        "not tried = 50% rubric + 50% judge panel.", "",
        "| # | Idea | Rubric /60 | Judges /30 | Court | Composite |", "|---|---|---|---|---|---|"]
-for i, (s, r, j, ng, v, _, c) in enumerate(rows, 1):
-    court = f"{v}, {ng}/{jury} not guilty" if ng is not None else "not tried"
-    out.append(f"| {i} | {s} | {r} | {j} | {court} | {c:.1f} |")
+for i, (s, r, j, ng, v, _, c, nj) in enumerate(rows, 1):
+    court = f"{v}, {ng}/{nj} not guilty" if ng is not None else "not tried"
+    out.append(f"| {i} | {s} | {r:g} | {j:g} | {court} | {c:.1f} |")
 open(os.path.join(lab, "LEADERBOARD.md"), "w").write("\n".join(out) + "\n")
 print("\n".join(out))
 

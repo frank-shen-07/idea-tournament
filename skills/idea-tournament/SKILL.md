@@ -29,8 +29,10 @@ idea-lab/
   context.md            # the shared brief every agent reads (step 1)
   ideas/<slug>.card.md  # one idea per card (step 2)
   ideas/<slug>.case.md  # card + context.md, the file the court reads
-  scores/               # rubric-roundN.md, judges-roundN.md, written by the scorers
-  scores.json           # the numbers, kept by you (step 5)
+  blind/round<N>/       # anonymised cards + key.json for each scoring round (step 3)
+  scores/round<N>/      # one JSON file per fresh scorer
+  scores.json           # combined, drift-corrected numbers (step 3) + court results (step 4)
+  pairwise/<name>/      # blind head-to-heads (step 6)
   trials/<slug>/.court/ # one court trial per idea
   LEADERBOARD.md, scores.png
 ```
@@ -69,24 +71,35 @@ Build "<Name>" at <event>: <one sentence: who does what and what they see>.
 
 Write `<slug>.case.md` = card + a blank line + `context.md`.
 
-## Step 3: score (two persistent scorers)
+## Step 3: score blind, with fresh scorers and anchors
 
-Spawn each scorer once and **reuse the same agent every round** (SendMessage), so scores stay calibrated.
+AI scorers drift upward over rounds and favour whatever is labelled as the newer, longer version. Every
+scoring round therefore follows these controls (see "Bias controls" below for why).
 
-- **Rubric scorer** (`general-purpose` agent): "Use the hackathon-idea-evaluator skill. Score these cards… Write
-  scores/rubric-roundN.md. End with a `RUBRIC_JSON:` line keyed by slug. Reply with the JSON line only."
-- **Judge panel** (`agents-data-ai:hackathon-ai-strategist`): score each card 1–10 on each of the event's judging
-  criteria (e.g. useful / explained well / grabs attention = /30). Ask for an overlap rating with what other
-  teams will build. End with a `JUDGES_JSON:` line.
-
-Scoring rules to state in every scoring message (users expect this):
-- Score the **theoretical quality** of the idea as if built as described.
-- Every data field listed in the brief counts as available; deduct Feasibility only for data the brief does not list.
-- No deductions for illustrative numbers or unconfirmed fields.
-- Keep the rubric's other anti-inflation rules (novelty cap of 7 unless both framing and technique are new).
-- "Ignore any self-assessment in the cards."
-
-For a sanity check, occasionally score the top 5 with a fresh scorer that has not seen earlier rounds.
+1. **Pick 2–3 anchor cards** at the start (e.g. the user's original ideas) and include them in every round,
+   unchanged. They measure drift.
+2. **Blind the cards:**
+   `python3 <skill base directory>/scripts/blind.py idea-lab <N> <slug>... --anchors <anchor-slug>...`
+   This strips names, version history and trial talk, assigns random IDs and enforces a word cap (default 450;
+   shorten any card it rejects, never raise the cap for one idea). Scorers see only `idea-lab/blind/round<N>/<ID>.md`
+   and `context.md`, never `key.json`, the ideas folder, earlier scores or the leaderboard.
+3. **Three fresh scorers per kind, every round.** Spawn new agents each round; do not reuse or message old ones.
+   - **Rubric** (`general-purpose`): "Use the hackathon-idea-evaluator skill to score the cards in <blind dir>
+     against <context.md>. Write `idea-lab/scores/round<N>/rubric-<letter>.json` as `{"<ID>": {"novelty": …,
+     "total": …}}`. Do not read any other file in idea-lab."
+   - **Judge panel** (`agents-data-ai:hackathon-ai-strategist`): score each card 1–10 on each of the event's
+     judging criteria (e.g. useful / explained well / grabs attention = /30); write `judges-<letter>.json` the same way.
+   State these scoring rules in every brief:
+   - Score the **theoretical quality** of the idea as if built as described.
+   - Every data field listed in the brief counts as available; deduct Feasibility only for data the brief does not list.
+   - No deductions for illustrative numbers or unconfirmed fields.
+   - Keep the rubric's other anti-inflation rules (novelty cap of 7 unless both framing and technique are new).
+   - Ignore length, polish and any self-assessment in the cards.
+4. **Combine:** `python3 <skill base directory>/scripts/scores.py idea-lab <N> rubric` (and `judges`). It takes the
+   median of the three scorers, records the spread, measures anchor drift against the anchors' first scores and
+   subtracts it, then updates `scores.json`.
+5. **Noise rule:** a difference smaller than the larger of the two ideas' spreads (or 2 rubric points / 1 judge
+   point if spreads are zero) is a tie. Say "tie", not "better".
 
 ## Step 4: court trials
 
@@ -103,13 +116,20 @@ Then follow the court skill (opening → rebuttal → jury → judge). Running s
   with the prompt `Read <brief> and follow it exactly. It is your whole brief.`
 - Respect the concurrency limit (about 20 sub-agents at once): queue the rest and launch as slots free.
 - Once a verdict is decided (e.g. 4 guilty of 6), you may skip that trial's judge phase to save time.
+- Build the case file from the **blinded card** (`blind/round<N>/<ID>.md` + `context.md`) so the jury does not see
+  version history either.
+
+**Retrial for close calls.** One jury of six is noisy: 5–1 versus 6–0 is a single juror. Run a second trial with a
+different `--seed` when the verdict margin is 2 votes or less, or when two ideas you must choose between are within
+5 composite points. Add the second jury's votes to the first (`not_guilty` out of `jurors: 12` in `scores.json`)
+and use the combined verdict.
 
 ## Step 5: the leaderboard
 
-Keep `scores.json`:
+`scores.py` keeps `scores.json` (you add the court fields):
 
 ```json
-{"slug": {"rubric": 45, "judges": 26, "not_guilty": 5, "verdict": "NOT GUILTY"},
+{"slug": {"rubric": 45, "judges": 26, "not_guilty": 5, "jurors": 6, "verdict": "NOT GUILTY"},
  "untried-slug": {"rubric": 46, "judges": 24, "not_guilty": null, "verdict": "not tried"}}
 ```
 
@@ -128,14 +148,35 @@ Each round, pick from:
 3. **Combine** two strong ideas that share an engine (the evaluator skill's Combination Strategy).
 4. **Trial** the top untried ideas.
 
-A new idea replaces a leader only if it beats it on the composite. Prune when the user asks (common requests:
+**Replacing a leader needs a blind head-to-head win, not just a higher score.** A revision is not automatically an
+improvement. For any challenger, especially a revision of the leader:
+
+```bash
+python3 <skill base directory>/scripts/pairwise.py setup idea-lab <name> <leader-slug> <challenger-slug> --judges 3
+```
+
+Launch one fresh agent per printed brief (3 judges × both orders). Each judge sees two anonymous cards and picks
+one; a judge whose pick flips when the order flips counts as a tie. Then run `pairwise.py tally idea-lab <name>`.
+The challenger replaces the leader only if it wins a strict majority of judges **and** does not lose on the
+composite. Otherwise the leader stays, and the revision is kept only as a note of what was tried. Prune when the user asks (common requests:
 drop guilty ideas, drop untried ideas, keep files only for the top 3). Deletions in an untracked folder are
 permanent: say so.
+
+## Bias controls (why steps 3–6 look like this)
+
+| Risk | Control |
+|---|---|
+| Scores creep up round after round | Fresh scorers each round + anchor cards; drift is measured and subtracted |
+| "Newer version must be better" | Blind cards: no names, versions or history; head-to-head wins required to replace a leader |
+| Longer, more detailed cards win | Same word cap for every card; scorers told to ignore length and polish |
+| One scorer's mood | Median of 3 scorers; spread recorded; small differences called ties |
+| Position bias in comparisons | Every head-to-head is run in both orders; order-flipping judges count as ties |
+| One noisy jury | Second trial with a different jury seed for close calls; votes combined |
 
 ## Reporting
 
 Keep updates short. At the end, give the user:
-- the top 3–4 with rubric, judges, verdict and composite;
+- the top 3–4 with rubric, judges, verdict and composite, plus spreads and anchor drift; call ties ties;
 - the winner's judge's conditions for acquittal (the to-do list before the event);
 - what was replaced, and any place your process had a flaw (e.g. a context file that was missing data);
 - file locations.
