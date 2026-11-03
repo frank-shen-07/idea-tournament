@@ -78,7 +78,12 @@ $R --court idea-lab/trials <slug>...                                            
 ```
 
 Wherever a step below says "launch an agent", use the matching command instead; everything else is the same.
-The key comes from `OPENROUTER_API_KEY` or `~/.config/openrouter/key`; never ask the user to paste it into chat.
+**Key setup:** never ask the user to paste a key into chat, and never run the setup through `!` (its output lands
+in the conversation). If no key is set, tell the user to run this in their own terminal:
+`python3 SKILL/scripts/openrouter_key.py`. It asks for the key at a hidden prompt, verifies it with OpenRouter's
+free key-info call, and saves it readable only by them (`~/.config/openrouter/key`, mode 600). Then run
+`python3 SKILL/scripts/openrouter_key.py --check` yourself: it prints the key's label and remaining credit, never
+the key. `--remove` deletes it. `OPENROUTER_API_KEY`, if set, takes precedence.
 Use `--dry-run` to see each job's inputs, outputs and prompt size without calling the API.
 
 ## Workspace

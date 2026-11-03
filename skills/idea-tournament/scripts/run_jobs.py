@@ -57,7 +57,8 @@ def api_key(model):
         if os.path.exists(p):
             k = open(p).readline().strip()
     if not k:
-        sys.exit("No OpenRouter key: set OPENROUTER_API_KEY or put it in ~/.config/openrouter/key")
+        sys.exit("No OpenRouter key. In your own terminal (not a chat), run:\n  python3 "
+                 + os.path.join(HERE, "openrouter_key.py"))
     return k
 
 

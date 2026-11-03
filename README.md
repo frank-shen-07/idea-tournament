@@ -44,8 +44,15 @@ Then in Claude Code, ask something like: *"Use idea-tournament to evaluate our h
 
 ## Cheap models via OpenRouter
 
-Any role can run on an OpenRouter model instead of Claude sub-agents. Put your key in `OPENROUTER_API_KEY` (or the
-first line of `~/.config/openrouter/key`), then tell Claude which model to use, e.g. *"run the court and idea
+Any role can run on an OpenRouter model instead of Claude. Save your key once, in your own terminal:
+
+```bash
+python3 ~/.claude/skills/idea-tournament/scripts/openrouter_key.py      # or the path where the skill is installed
+```
+
+It asks for the key at a hidden prompt (nothing shows while you paste), checks it with OpenRouter, and saves it
+readable only by you. `--check` shows whether it works and how much credit is left; `--remove` deletes it.
+Never paste the key into a Claude chat. Then tell Claude which model to use, e.g. *"run the court and idea
 writing on openrouter:z-ai/glm-5.3-flash"*. Your brief and ideas are sent to OpenRouter and that model's provider.
 
 ## Credits
