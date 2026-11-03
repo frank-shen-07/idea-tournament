@@ -8,10 +8,10 @@ format, retries once, and logs exact tokens and cost. Jobs whose outputs all exi
 Usage:
   run_jobs.py --model z-ai/glm-5.3-flash JOB [JOB ...]       # JOB = brief path, or path:letter for packed-score.md
   run_jobs.py --model ... --court <trials-dir> <slug> [...]   # run whole trials: advance, run, repeat until done
-Options: --concurrency 8  --max-tokens 4000  --log openrouter-usage.jsonl  --dry-run
+Options: --concurrency 8  --max-tokens 16000  --log openrouter-usage.jsonl  --dry-run
 Key: $OPENROUTER_API_KEY, else the first line of ~/.config/openrouter/key. The key is never printed or logged.
 """
-import concurrent.futures as cf, json, os, re, subprocess, sys, time, urllib.error, urllib.request
+import concurrent.futures as cf, json, os, re, ssl, subprocess, sys, time, urllib.error, urllib.request
 
 API = "https://openrouter.ai/api/v1/chat/completions"
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -20,6 +20,26 @@ PATH_RE = re.compile(r"(/(?:[^/\s`'\"()<>,;]+/){2,}[^/\s`'\"()<>,;]+\.[A-Za-z0-9
 SYSTEM = ("You complete exactly one job for an idea-evaluation tournament. The job brief is given first, followed by "
           "the full contents of every file it refers to, so you never need to open anything. Follow the brief exactly "
           "(role, rules, word limits, format). Use only facts in the brief and the included files.")
+
+
+def tls_context():
+    """Verified TLS everywhere. python.org's macOS Python ships without CA certs, so fall back to certifi or the
+    system bundle instead of ever disabling verification."""
+    ctx = ssl.create_default_context()
+    if ctx.get_ca_certs():
+        return ctx
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        pass
+    for f in ("/etc/ssl/cert.pem", "/etc/ssl/certs/ca-certificates.crt", "/opt/homebrew/etc/openssl@3/cert.pem"):
+        if os.path.exists(f):
+            return ssl.create_default_context(cafile=f)
+    return ctx
+
+
+TLS = tls_context()
 
 
 def api_key():
@@ -71,9 +91,17 @@ def strip_fences(t):
     return m.group(1).strip() if m else t
 
 
-def check(path, content):
+def check(path, content, ids=()):
     if path.endswith(".json"):
-        json.loads(re.search(r"\{.*\}", content, re.S).group(0))
+        data = json.loads(re.search(r"\{.*\}", content, re.S).group(0))
+        # Blind scoring replies must score every idea in the round, in every section, or the medians go wrong.
+        for section in ("rubric", "judges"):
+            if ids and isinstance(data.get(section), dict):
+                missing = sorted(set(ids) - set(data[section]))
+                if missing:
+                    raise ValueError(f"'{section}' is missing ideas {missing}: score every idea")
+        if "pick" in data and data["pick"] not in (1, 2):
+            raise ValueError("'pick' must be 1 or 2")
     if "/jury/" in path and not re.search(r"^VOTE:\s*(NOT GUILTY|GUILTY)", content, re.M):
         raise ValueError("juror file needs a 'VOTE: GUILTY' or 'VOTE: NOT GUILTY' line")
     if path.endswith(".card.md") and not content.lstrip().startswith("Build \""):
@@ -87,7 +115,7 @@ def call(model, messages, max_tokens, key):
         req = urllib.request.Request(API, body, {"Authorization": f"Bearer {key}", "Content-Type": "application/json",
                                                  "X-Title": "idea-tournament"})
         try:
-            with urllib.request.urlopen(req, timeout=300) as r:
+            with urllib.request.urlopen(req, timeout=300, context=TLS) as r:
                 return json.load(r)
         except urllib.error.HTTPError as e:
             if e.code in (429, 500, 502, 503, 504) and attempt < 4:
@@ -105,6 +133,9 @@ def run_one(job, model, max_tokens, key, log):
     path, brief, inputs, outputs = plan(job)
     if not outputs:
         return f"skip  {job} (outputs already exist)"
+    # Blind IDs for this round, used only to check the reply is complete; key.json itself is never sent to the model.
+    key_file = os.path.join(os.path.dirname(os.path.abspath(path)), "key.json")
+    ids = json.load(open(key_file)).get("key", {}).keys() if os.path.isfile(key_file) else ()
     messages = build_messages(brief, inputs, outputs)
     usage = {"prompt_tokens": 0, "completion_tokens": 0, "cost": 0.0}
     err = None
@@ -113,8 +144,11 @@ def run_one(job, model, max_tokens, key, log):
         u = resp.get("usage", {})
         for k in usage:
             usage[k] += u.get(k, 0) or 0
-        text = resp["choices"][0]["message"].get("content") or ""
+        choice = resp["choices"][0]
+        text = choice["message"].get("content") or ""
         try:
+            if choice.get("finish_reason") == "length":
+                raise ValueError(f"reply cut off at {max_tokens} tokens")
             if len(outputs) == 1:
                 files = {outputs[0]: strip_fences(text)}
             else:
@@ -124,13 +158,17 @@ def run_one(job, model, max_tokens, key, log):
                     raise ValueError(f"missing outputs: {missing}")
             for p, c in files.items():
                 if p in outputs:
-                    check(p, c)
+                    check(p, c, ids)
             for p in outputs:
                 open(p, "w").write(files[p].strip() + "\n")
             err = None
             break
         except (ValueError, KeyError, AttributeError, json.JSONDecodeError) as e:
             err = str(e)
+            if choice.get("finish_reason") == "length":
+                # Reasoning models spend hidden tokens before answering: ask again fresh with twice the room.
+                max_tokens *= 2
+                continue
             messages = messages + [{"role": "assistant", "content": text},
                                    {"role": "user", "content": f"That answer was not usable ({err}). Answer again, "
                                                                "exactly in the required format."}]
@@ -144,7 +182,12 @@ def run_one(job, model, max_tokens, key, log):
 def run_many(jobs, a, key):
     totals = []
     with cf.ThreadPoolExecutor(a["concurrency"]) as ex:
-        for line in ex.map(lambda j: run_one(j, a["model"], a["max_tokens"], key, a["log"]), jobs):
+        def safe(j):
+            try:
+                return run_one(j, a["model"], a["max_tokens"], key, a["log"])
+            except Exception as e:  # one bad job must not stop the others
+                return f"FAIL  {j}  ({type(e).__name__}: {str(e)[:200]})"
+        for line in ex.map(safe, jobs):
             print(line, flush=True)
             totals.append(line)
     return totals
@@ -164,7 +207,7 @@ def court(trials, slugs, a, key):
 
 def main():
     argv = sys.argv[1:]
-    a = {"model": None, "concurrency": 8, "max_tokens": 4000, "log": "openrouter-usage.jsonl", "dry": False}
+    a = {"model": None, "concurrency": 8, "max_tokens": 16000, "log": "openrouter-usage.jsonl", "dry": False}
     rest = []
     i = 0
     while i < len(argv):
