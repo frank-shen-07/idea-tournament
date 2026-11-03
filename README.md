@@ -41,6 +41,8 @@ Then in Claude Code, ask something like: *"Use idea-tournament to evaluate our h
 - `skills/idea-tournament/scripts/blind.py`: anonymises cards (no names, versions or history; word cap)
 - `skills/idea-tournament/scripts/scores.py`: median of 3 fresh scorers, anchor-based drift correction
 - `skills/idea-tournament/scripts/pairwise.py`: blind head-to-heads in both orders; a revision must win to replace the leader
+- `skills/idea-tournament/scripts/pack.py` / `record.py`: one packed input file per agent and saving its JSON reply (keeps each agent to one read + one reply)
+- `agents/idea-judge.md`: a Read-only Sonnet agent for scoring and head-to-heads (installed with the plugin)
 - `skills/idea-tournament/scripts/leaderboard.py`: builds `LEADERBOARD.md` and `scores.png` from `scores.json`
 - `skills/idea-tournament/scripts/advance.sh`: drives several court trials at once
 

@@ -2,8 +2,9 @@
 """Blind head-to-head: does a challenger (e.g. a revision) actually beat its incumbent?
 
 setup: python3 pairwise.py setup <lab> <name> <incumbent-slug> <challenger-slug> [--judges 3]
-  Writes blind cards and one brief per (judge, order); prints the brief paths. Launch one fresh agent per brief
-  with: "Read <brief> and follow it exactly. It is your whole brief."
+  Writes blind cards and one self-contained brief per (judge, order); prints the brief paths. Launch one fresh
+  idea-judge agent per brief with the brief's path; save each JSON reply with:
+  python3 record.py pair <lab> <name> <judge> <order> < reply.json
 tally: python3 pairwise.py tally <lab> <name>
   Each judge sees both orders. A judge whose two picks disagree (picked the same position twice) counts as a tie.
   The challenger replaces the incumbent only if it wins a strict majority of judges.
@@ -13,20 +14,29 @@ import json, os, random, sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from blind import strip_card, new_ids
 
-BRIEF = """You are judging two hackathon ideas blind. You know nothing about who wrote them or how they were made.
+BRIEF = """# Task: judge two hackathon ideas blind
 
-Read only these files:
-- Context (the event, judging criteria and available data): {context}
-- Option 1: {first}
-- Option 2: {second}
+Everything you need is in this file. Do not open any other file. You know nothing about who wrote these ideas
+or how they were made.
 
-Decide which idea would do better with the event's judges, using the judging criteria in the context file, and
+Decide which idea would do better with the event's judges, using the judging criteria in the context below, and
 which is the better idea to build in the time available. Ignore length, polish and confident wording: judge the
-idea, not the writing. Do not read any other file.
+idea, not the writing.
 
-Write exactly one line of JSON to {result}:
+Reply with ONE JSON object and nothing else:
 {{"pick": 1 or 2, "confidence": "low" | "medium" | "high", "reason": "<one sentence>"}}
-Then reply with that JSON line only.
+
+# Event context
+
+{context}
+
+# Option 1
+
+{first}
+
+# Option 2
+
+{second}
 """
 
 
@@ -46,11 +56,11 @@ def setup(lab, name, inc, chal, judges):
         for order in (1, 2):
             inc_first = first_is_inc if order == 1 else not first_is_inc
             f, s = (cards[inc], cards[chal]) if inc_first else (cards[chal], cards[inc])
-            res = os.path.abspath(os.path.join(out, f"result-j{j}-o{order}.json"))
             meta = os.path.join(out, f"order-j{j}-o{order}.json")
             json.dump({"option1": inc if inc_first else chal}, open(meta, "w"))
             bp = os.path.join(out, f"brief-j{j}-o{order}.md")
-            open(bp, "w").write(BRIEF.format(context=ctx, first=os.path.abspath(f), second=os.path.abspath(s), result=res))
+            open(bp, "w").write(BRIEF.format(context=open(ctx).read().strip(), first=open(f).read().strip(),
+                                             second=open(s).read().strip()))
             print(os.path.abspath(bp))
 
 

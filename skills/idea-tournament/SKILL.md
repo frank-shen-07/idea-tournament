@@ -22,8 +22,9 @@ Optional: Python 3 with matplotlib for the chart (the leaderboard works without 
 
 ## Budget (ask once at the start; default: lean)
 
-Each sub-agent costs roughly 30–40k tokens (it rereads the context, its brief and the cards), so the number of
-agents drives cost. Ask the user which budget to use, and which model sub-agents should run on (the Agent tool's
+A general-purpose sub-agent that opens files one by one costs roughly 30–40k tokens, mostly fixed start-up
+overhead resent on every step. Packed files plus the `idea-judge` agent (step 3) cut that to one read and one reply.
+The number of agents still drives cost. Ask the user which budget to use, and which model sub-agents should run on (the Agent tool's
 `model` setting; `sonnet` is a good default for scorers and jurors, `haiku` is cheapest but noisier).
 
 | Setting | Scoring round | Head-to-head (per pair) | Court trial | Retrial for close calls |
@@ -98,19 +99,19 @@ scoring round therefore follows these controls (see "Bias controls" below for wh
    This strips names, version history and trial talk, assigns random IDs and enforces a word cap (default 450;
    shorten any card it rejects, never raise the cap for one idea). Scorers see only `idea-lab/blind/round<N>/<ID>.md`
    and `context.md`, never `key.json`, the ideas folder, earlier scores or the leaderboard.
-3. **Fresh scorers every round** (how many depends on the budget). Spawn new agents each round; do not reuse or
-   message old ones. On lean/minimal, one combined scorer does both briefs below in one pass.
-   - **Rubric** (`general-purpose`): "Use the hackathon-idea-evaluator skill to score the cards in <blind dir>
-     against <context.md>. Write `idea-lab/scores/round<N>/rubric-<letter>.json` as `{"<ID>": {"novelty": …,
-     "total": …}}`. Do not read any other file in idea-lab."
-   - **Judge panel** (`agents-data-ai:hackathon-ai-strategist`): score each card 1–10 on each of the event's
-     judging criteria (e.g. useful / explained well / grabs attention = /30); write `judges-<letter>.json` the same way.
-   State these scoring rules in every brief:
-   - Score the **theoretical quality** of the idea as if built as described.
-   - Every data field listed in the brief counts as available; deduct Feasibility only for data the brief does not list.
-   - No deductions for illustrative numbers or unconfirmed fields.
-   - Keep the rubric's other anti-inflation rules (novelty cap of 7 unless both framing and technique are new).
-   - Ignore length, polish and any self-assessment in the cards.
+3. **Fresh scorers every round** (how many depends on the budget). Spawn new agents each round; never reuse or
+   message old ones. Keep each agent to one read and one reply, because every extra step resends its whole context:
+   - Pack the round: `python3 <skill base directory>/scripts/pack.py score idea-lab <N>` writes one file with the
+     task, rules, rubric, context and every blind card (`blind/round<N>/packed-score.md`).
+   - Launch each scorer as the plugin's `idea-judge` agent (Read-only, Sonnet, short instructions) with just the
+     packed file's path as the prompt. If that agent type is not available (plugin not installed or not yet
+     reloaded), use `general-purpose` with `model: sonnet` and the prompt "Read <path> once (it is your whole task)
+     and reply with only the JSON it asks for. Use no other tools and open no other files."
+   - Each scorer replies with `{"rubric": {...}, "judges": {...}}`. Save it with
+     `python3 <skill base directory>/scripts/record.py score idea-lab <N> <letter>` (reply on stdin).
+   The packed file already states the scoring rules: theoretical quality; every data field in the context counts
+   as available; no deductions for illustrative numbers; the rubric's other anti-inflation rules; ignore length,
+   polish and self-assessment.
 4. **Combine:** `python3 <skill base directory>/scripts/scores.py idea-lab <N> rubric` (and `judges`). It takes the
    median of the scorers, records the spread, measures anchor drift against the anchors' first scores and
    subtracts it, then updates `scores.json`.
@@ -171,7 +172,9 @@ improvement. For any challenger, especially a revision of the leader:
 python3 <skill base directory>/scripts/pairwise.py setup idea-lab <name> <leader-slug> <challenger-slug> --judges <1 lean, 3 full>
 ```
 
-Launch one fresh agent per printed brief (judges × both orders). Each judge sees two anonymous cards and picks
+Each brief is self-contained (context and both blind cards inside). Launch one fresh `idea-judge` agent per
+printed brief (judges × both orders), or the `general-purpose` fallback above, and save each reply with
+`python3 <skill base directory>/scripts/record.py pair idea-lab <name> <judge> <order>`. Each judge sees two anonymous cards and picks
 one; a judge whose pick flips when the order flips counts as a tie. Then run `pairwise.py tally idea-lab <name>`.
 The challenger replaces the leader only if it wins a strict majority of judges **and** does not lose on the
 composite. Otherwise the leader stays, and the revision is kept only as a note of what was tried. Prune when the user asks (common requests:
