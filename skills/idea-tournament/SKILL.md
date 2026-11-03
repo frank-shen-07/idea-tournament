@@ -147,7 +147,7 @@ and use the combined verdict.
 `scores.py` keeps `scores.json` (you add the court fields):
 
 ```json
-{"slug": {"rubric": 45, "judges": 26, "not_guilty": 5, "jurors": 6, "verdict": "NOT GUILTY"},
+{"slug": {"rubric": 45, "judges": 26, "not_guilty": 5, "jurors": 6, "verdict": "NOT GUILTY", "family": "rent-rebuttal"},
  "untried-slug": {"rubric": 46, "judges": 24, "not_guilty": null, "verdict": "not tried"}}
 ```
 
@@ -159,7 +159,20 @@ Composite (0–100):
 
 ## Step 6: improve and repeat
 
-Each round, pick from:
+**Exploration rule (every round).** Polishing one idea family converges on a local optimum: the best version of
+one idea, not the best idea. So every round must include:
+- **At least 3 brand-new ideas** that do not share a core with anything already on the board (different user,
+  decision or technique, not a reframing). Ask `hackathon-ai-strategist` for them, giving it the list of every
+  idea family tried so far and asking for ideas outside those families.
+- **A cap of 2 consecutive revisions per family.** Track each card's family (e.g. `family: rent-rebuttal` in
+  `scores.json`). After two revision rounds in a row on one family, the next round must score new challengers
+  before that family can be revised again.
+- New ideas are scored blind in the same pass as everything else, so on lean/minimal budgets they add cards, not
+  agents. The best new idea of each round goes to trial if it lands in the top 3.
+
+Report how many families are on the board and whether the top 3 are all from one family; if they are, say so.
+
+Each round, also pick from:
 1. **Revise** a leader using its judge's "Conditions for acquittal" → new card `rN-<slug>-v2`, score, trial.
 2. **Challengers:** ask `hackathon-ai-strategist` for 4 new ideas aimed at the rubric's weak dimensions, giving it
    the leader's card, the scorer's "what would raise it" notes and the list of ideas already tried.
@@ -190,6 +203,7 @@ permanent: say so.
 | "Newer version must be better" | Blind cards: no names, versions or history; head-to-head wins required to replace a leader |
 | Longer, more detailed cards win | Same word cap for every card; scorers told to ignore length and polish |
 | One scorer's mood | Median of 3 scorers; spread recorded; small differences called ties |
+| Polishing one idea family forever | 3 new unrelated ideas per round; max 2 consecutive revisions per family |
 | Position bias in comparisons | Every head-to-head is run in both orders; order-flipping judges count as ties |
 | One noisy jury | Second trial with a different jury seed for close calls; votes combined |
 
