@@ -7,7 +7,7 @@ longer cards can't win on detail. The ID -> slug key is written next to the card
 Usage: python3 blind.py <lab> <round> <slug>... [--anchors <slug>...] [--max-words 450] [--allow-long]
 Writes: <lab>/blind/round<N>/<ID>.md and key.json
 """
-import json, os, random, re, string, sys
+import glob, json, os, random, re, string, sys
 
 STRIP_PAREN = re.compile(r"\s*\([^()]*\b(version|revised|revision|v\d+|trial|iteration|improved|"
                          r"changes the framing|combines|after \w+ (trials|rounds))\b[^()]*\)", re.I)
@@ -61,23 +61,30 @@ def main():
         i = rest.index("--anchors"); anchors = rest[i + 1:]; rest = rest[:i]
     slugs = rest + [s for s in anchors if s not in rest]
 
-    out = os.path.join(lab, "blind", f"round{rnd}")
-    os.makedirs(out, exist_ok=True)
-    ids = new_ids(len(slugs))
-    random.shuffle(ids)
-    key, long_cards = {}, []
-    for slug, i in zip(slugs, ids):
-        text = strip_card(open(os.path.join(lab, "ideas", f"{slug}.card.md")).read(), f"Idea {i}")
-        words = len(text.split())
+    texts, long_cards = {}, []
+    for slug in slugs:
+        text = open(os.path.join(lab, "ideas", f"{slug}.card.md")).read()
+        words = len(strip_card(text, "Idea XXX").split())
         if words > cap:
             long_cards.append((slug, words))
-        open(os.path.join(out, f"{i}.md"), "w").write(text)
-        key[i] = slug
-    json.dump({"key": key, "anchors": anchors, "max_words": cap}, open(os.path.join(out, "key.json"), "w"), indent=1)
+        texts[slug] = text
     for slug, w in long_cards:
         print(f"OVER CAP: {slug} has {w} words (cap {cap}). Shorten the card and re-run.", file=sys.stderr)
     if long_cards and not allow_long:
         sys.exit(1)
+
+    # Start the round folder clean: cards left by an earlier run (other random IDs) would otherwise be packed too.
+    out = os.path.join(lab, "blind", f"round{rnd}")
+    os.makedirs(out, exist_ok=True)
+    for f in glob.glob(os.path.join(out, "*.md")) + glob.glob(os.path.join(out, "key.json")):
+        os.remove(f)
+    ids = new_ids(len(slugs))
+    random.shuffle(ids)
+    key = {}
+    for slug, i in zip(slugs, ids):
+        open(os.path.join(out, f"{i}.md"), "w").write(strip_card(texts[slug], f"Idea {i}"))
+        key[i] = slug
+    json.dump({"key": key, "anchors": anchors, "max_words": cap}, open(os.path.join(out, "key.json"), "w"), indent=1)
     for i in sorted(key):
         print(os.path.join(out, f"{i}.md"))
 
