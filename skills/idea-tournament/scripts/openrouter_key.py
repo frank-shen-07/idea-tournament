@@ -82,6 +82,15 @@ def main():
         sys.exit(0 if ok else 1)
     if not sys.stdin.isatty():
         sys.exit("Run this in your own terminal: it needs a hidden prompt. Never paste the key into a chat.")
+    setup()
+
+
+def current_key():
+    return os.environ.get("OPENROUTER_API_KEY", "").strip() or saved_key()
+
+
+def setup():
+    """Hidden prompt -> verify -> save. Exits on a bad key; returns once a key is saved."""
     print("Get a key at https://openrouter.ai/keys (it starts with sk-or-).")
     print("Paste it below and press Enter. Nothing will show while you paste; that is normal.")
     key = getpass.getpass("OpenRouter key: ").strip().strip("'\"")

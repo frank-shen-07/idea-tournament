@@ -95,6 +95,30 @@ def conditions(lab, slug):
     return m.group(0).strip() if m else ""
 
 
+def preflight(M):
+    """Before anything is spent: every OpenRouter role needs a working key, and Claude roles need the claude CLI."""
+    import shutil
+    import openrouter_key as ok_
+    if any(m.startswith("claude:") for m in M.values()) and not shutil.which("claude"):
+        sys.exit("The claude CLI is not on PATH; Claude roles need it (or pass OpenRouter models for every role).")
+    roles = [r for r, m in M.items() if not m.startswith("claude:")]
+    if not roles:
+        return
+    key = ok_.current_key()
+    if not key and sys.stdin.isatty():  # started by a person in a terminal: ask right here, at a hidden prompt
+        print(f"No OpenRouter key yet (needed for: {', '.join(roles)}).")
+        ok_.setup()
+        key = ok_.current_key()
+    if not key:
+        here = os.path.join(HERE, "openrouter_key.py")
+        sys.exit("STOPPED before spending anything: no OpenRouter key, needed for " + ", ".join(roles) + ".\n"
+                 f"The user should run this in their own terminal (never paste a key into a chat):\n  python3 {here}\n"
+                 "Or run every role on Claude: " + " ".join(f"--{r} claude:sonnet" for r in roles))
+    good, msg = ok_.verify(key)
+    if good is False:
+        sys.exit(f"STOPPED before spending anything: {msg} Fix it with: python3 {os.path.join(HERE, 'openrouter_key.py')}")
+
+
 def main():
     a = sys.argv[1:]
     if len(a) < 2:
@@ -106,6 +130,7 @@ def main():
 
     M = {"ideas": opt("--ideas", "claude:sonnet"), "score": opt("--score", "claude:sonnet"),
          "pairs": opt("--pairs", "z-ai/glm-5.3-flash"), "court": opt("--court", "z-ai/glm-5.3-flash")}
+    preflight(M)
     n_new, n_scorers = int(opt("--new", 3)), int(opt("--scorers", 3))
     pair_judges, max_trials = int(opt("--pair-judges", 1)), int(opt("--max-trials", 2))
     run = Runner(lab, rnd)

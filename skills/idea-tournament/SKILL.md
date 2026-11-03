@@ -32,6 +32,13 @@ Ask the user these in one message, with defaults, then run rounds without furthe
      provider, and quality must be checked: run one scoring round on both and compare before trusting it.
 3. Where the brief and any starting ideas are.
 
+If any role uses OpenRouter (the `round.py` defaults do: head-to-heads and trials on GLM), run
+`python3 SKILL/scripts/openrouter_key.py --check` before round 1. If no key is set, ask the user to run
+`python3 SKILL/scripts/openrouter_key.py` in their own terminal (it asks for the key at a hidden prompt) and wait
+for them to say it's done, or offer to run every role on Claude instead. Never ask for the key in chat. `round.py`
+also checks the key before spending anything and stops with these same instructions, so a loop never runs half a
+round without one.
+
 | Setting | New ideas | Scorers | Head-to-head per pair | Trial | Retrial | ≈ tokens per round* |
 |---|---|---|---|---|---|---|
 | **minimal** | 3 | 1 | scorer does it | `--jury 3` | no | ~45k + trials |
