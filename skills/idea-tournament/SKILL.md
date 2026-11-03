@@ -23,7 +23,8 @@ Optional: Python 3 with matplotlib for the chart (the leaderboard works without 
 ## Budget (ask once at the start; default: lean)
 
 A general-purpose sub-agent that opens files one by one costs roughly 30–40k tokens, mostly fixed start-up
-overhead resent on every step. Packed files plus the `idea-judge` agent (step 3) cut that to one read and one reply.
+overhead resent on every step. Packed files plus the `idea-judge` agent (step 3) cut that to one read and one reply: measured at about 9k
+tokens per head-to-head and 22k per scorer (11 cards), so a lean round (3 scorers + 4 head-to-heads) is about 100k.
 The number of agents still drives cost. Ask the user which budget to use, and which model sub-agents should run on (the Agent tool's
 `model` setting; `sonnet` is a good default for scorers and jurors, `haiku` is cheapest but noisier).
 
