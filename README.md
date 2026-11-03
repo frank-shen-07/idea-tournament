@@ -38,7 +38,14 @@ Then in Claude Code, ask something like: *"Use idea-tournament to evaluate our h
 - `skills/idea-tournament/rubric.md`: the /60 rubric with calibration rules
 - `skills/idea-tournament/court/`: the bundled trial engine (prosecutor, defense, jury, judge)
 - `skills/idea-tournament/scripts/`: `blind.py` (anonymise cards), `pack.py` (one input file per agent), `record.py` (save replies), `scores.py` (median + drift correction), `pairwise.py` (blind head-to-heads), `advance.sh` (drive trials), `leaderboard.py` (table + chart)
+- `skills/idea-tournament/scripts/run_jobs.py`: runs any job (ideas, scoring, head-to-heads, whole court trials) on any OpenRouter model, e.g. GLM, with exact token and cost logging
 - `agents/`: `idea-writer`, `idea-judge`, `court-runner`: lightweight Sonnet sub-agents (one read, one write or reply)
+
+## Cheap models via OpenRouter
+
+Any role can run on an OpenRouter model instead of Claude sub-agents. Put your key in `OPENROUTER_API_KEY` (or the
+first line of `~/.config/openrouter/key`), then tell Claude which model to use, e.g. *"run the court and idea
+writing on openrouter:z-ai/glm-5.3-flash"*. Your brief and ideas are sent to OpenRouter and that model's provider.
 
 ## Credits
 

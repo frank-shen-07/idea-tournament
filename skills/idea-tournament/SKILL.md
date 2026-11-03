@@ -13,7 +13,7 @@ yourself; sub-agents do that. Everything needed is bundled in this plugin:
 |---|---|
 | `rubric.md` | The /60 rubric (Novelty, Feasibility, Scalability, Impact, Demo-ability, Domain fit) with calibration rules |
 | `court/` | Trial engine: prosecutor, defense, jury, judge (`court.py`, from alexyc9381/court-skill, MIT; instructions in `court/COURT.md`) |
-| `scripts/` | `blind.py`, `pack.py`, `record.py`, `scores.py`, `pairwise.py`, `advance.sh`, `leaderboard.py` |
+| `scripts/` | `blind.py`, `pack.py`, `record.py`, `scores.py`, `pairwise.py`, `advance.sh`, `leaderboard.py`, `run_jobs.py` (OpenRouter runner) |
 | Agents `idea-writer`, `idea-judge`, `court-runner` | Lightweight Sonnet sub-agents with minimal tools: they read one file and write or reply, so each costs a fraction of a general-purpose agent |
 
 Below, `SKILL` means this skill's base directory (Claude Code prints it when the skill loads). Python 3 is
@@ -25,7 +25,11 @@ do only what it says. Open no other files unless it tells you to."
 
 Ask the user these in one message, with defaults, then run rounds without further questions:
 1. **Budget:** minimal / **lean** (default) / full (table below), and how many rounds or a token cap.
-2. **Model** for sub-agents: **sonnet** (default) or haiku (cheapest, noisier).
+2. **Provider and model** for sub-agent jobs, per role (ideas / scoring / head-to-heads / court) or for all:
+   - **claude** (default): the bundled agents on `sonnet` (or haiku, cheapest but noisier).
+   - **openrouter:<model>**, e.g. `openrouter:z-ai/glm-5.3-flash`: jobs run through `scripts/run_jobs.py` instead
+     of sub-agents (see "Running jobs on OpenRouter"). Far cheaper, but data goes to OpenRouter and the model's
+     provider, and quality must be checked: run one scoring round on both and compare before trusting it.
 3. Where the brief and any starting ideas are.
 
 | Setting | New ideas | Scorers | Head-to-head per pair | Trial | Retrial | ≈ tokens per round* |
@@ -41,6 +45,23 @@ estimate; after it, report what it used.
 Token rules that apply everywhere: one packed input file per agent; agents write their output to files and reply
 one word, so you never read or retype their output; never reuse or
 message an old agent; launch independent agents in one message; keep your own updates to a line or two.
+
+## Running jobs on OpenRouter
+
+Every job is a self-contained brief, so any model can run it. `run_jobs.py` pastes in every file a brief names,
+asks the model for each output file the brief names, writes them, checks the format (JSON, juror `VOTE:` line,
+card header), retries once, skips jobs already done, and logs exact tokens and cost to `openrouter-usage.jsonl`.
+
+```bash
+R="python3 SKILL/scripts/run_jobs.py --model <openrouter-model> --log idea-lab/openrouter-usage.jsonl"
+$R idea-lab/ideas/packed-ideas-round<N>.md                                      # step A: new ideas
+$R idea-lab/blind/round<N>/packed-score.md:a ...:b ...:c idea-lab/pairwise/<name>/brief-*.md   # steps B and C
+$R --court idea-lab/trials <slug>...                                            # step D: whole trials, start to finish
+```
+
+Wherever a step below says "launch an agent", use the matching command instead; everything else is the same.
+The key comes from `OPENROUTER_API_KEY` or `~/.config/openrouter/key`; never ask the user to paste it into chat.
+Use `--dry-run` to see each job's inputs, outputs and prompt size without calling the API.
 
 ## Workspace
 
