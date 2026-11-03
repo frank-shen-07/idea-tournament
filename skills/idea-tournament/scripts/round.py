@@ -276,7 +276,7 @@ def main():
     json.dump(S, open(sp, "w"), indent=1)
 
     # ---- E. leaderboard and summary ----
-    board_md = sh(os.path.join(HERE, "leaderboard.py"), lab)
+    board_md = sh(os.path.join(HERE, "leaderboard.py"), lab, "--round", str(rnd))
     rows = [l for l in board_md.splitlines() if l.startswith("| ") and not l.startswith("| #")][:5]
     print(f"ROUND {rnd} ({lab})")
     print("\n".join(rows))
@@ -303,6 +303,7 @@ def main():
         print(f"  {step:13}{model:22}{n:>3} jobs {tok:>8} tok  ${usd:.4f}" + (f"  {bad} failed" if bad else ""))
     print(f"  {'TOTAL':35}{sum(v[0] for v in steps.values()):>3} jobs {sum(v[1] for v in steps.values()):>8} tok  "
           f"${sum(v[2] for v in steps.values()):.4f}")
+    print(f"chart: {lab}/scores.svg")
     print(f"details: {run.out.name}, {run.log}, {lab}/LEADERBOARD.md")
 
 

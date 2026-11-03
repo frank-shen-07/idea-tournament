@@ -7,7 +7,7 @@ Each round writes new ideas, scores every idea blind with fresh scorers (a rubri
 ## Requirements
 
 Nothing else to install: the rubric, the court (trial) engine and the three sub-agents are bundled.
-Python 3 is required; matplotlib is optional (for the chart).
+Python 3 is required, nothing else.
 
 ## Install
 
@@ -37,7 +37,8 @@ Then in Claude Code, ask something like: *"Use idea-tournament to evaluate our h
 - `skills/idea-tournament/SKILL.md`: the round-by-round process, budgets and bias controls
 - `skills/idea-tournament/rubric.md`: the /60 rubric with calibration rules
 - `skills/idea-tournament/court/`: the bundled trial engine (prosecutor, defense, jury, judge)
-- `skills/idea-tournament/scripts/`: `blind.py` (anonymise cards), `pack.py` (one input file per agent), `record.py` (save replies), `scores.py` (median + drift correction), `pairwise.py` (blind head-to-heads), `advance.sh` (drive trials), `leaderboard.py` (table + chart)
+- `skills/idea-tournament/scripts/round.py`: runs a whole round in one command (ideas, blind scoring, head-to-heads, trials, leaderboard and chart) and prints a short summary with the cost per step and model
+- `skills/idea-tournament/scripts/`: `blind.py` (anonymise cards), `pack.py` (one input file per agent), `record.py` (save replies), `scores.py` (median + drift correction), `pairwise.py` (blind head-to-heads), `advance.sh` (drive trials), `leaderboard.py` + `chart.py` (table and an SVG chart after every round: stacked score bars per idea, plus each idea's score by round)
 - `skills/idea-tournament/scripts/run_jobs.py`: runs any job (ideas, scoring, head-to-heads, whole court trials) on any OpenRouter model, e.g. GLM, with exact token and cost logging
 - `agents/`: `idea-writer`, `idea-judge`, `court-runner`: lightweight Sonnet sub-agents (one read, one write or reply)
 

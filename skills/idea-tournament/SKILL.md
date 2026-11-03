@@ -17,7 +17,7 @@ yourself; sub-agents do that. Everything needed is bundled in this plugin:
 | Agents `idea-writer`, `idea-judge`, `court-runner` | Lightweight Sonnet sub-agents with minimal tools: they read one file and write or reply, so each costs a fraction of a general-purpose agent |
 
 Below, `SKILL` means this skill's base directory (Claude Code prints it when the skill loads). Python 3 is
-required; matplotlib is optional (chart only). If an agent type above is missing (plugin not installed or not
+required; nothing else (the chart is plain SVG). If an agent type above is missing (plugin not installed or not
 reloaded), use `general-purpose` with `model: sonnet` and the prompt "Read <path> once (it is your whole task) and
 do only what it says. Open no other files unless it tells you to."
 
@@ -92,7 +92,7 @@ idea-lab/
   scores.json             # combined, drift-corrected scores + court results + family
   pairwise/<name>/        # blind head-to-heads
   trials/<slug>/.court/   # court trials
-  LEADERBOARD.md, scores.png
+  LEADERBOARD.md, scores.svg   # table + chart; the chart is embedded in LEADERBOARD.md
 ```
 
 ## Step 1: the context file (get this right first)
@@ -175,7 +175,12 @@ launched (and renders finished verdicts). Launch one `court-runner` per brief (p
 `court/COURT.md` for anything else (failed jurors, rendering). **Retrial** with a different seed when the margin
 is within the budget's limit; add votes (`not_guilty` out of `jurors: 12`).
 
-**E. Leaderboard.** Add court results to `scores.json`, then `python3 SKILL/scripts/leaderboard.py idea-lab`.
+**E. Leaderboard and chart.** Add court results to `scores.json`, then
+`python3 SKILL/scripts/leaderboard.py idea-lab --round <N>`. It writes `LEADERBOARD.md` and `scores.svg`: stacked
+bars per idea (rubric, judge panel, court share), the score and verdict at each bar's end, untried ideas in grey,
+and from round 2 on a composite-by-round line chart with the current top 3 labelled (`--round` records the
+history). Hover a bar or point in a browser for its numbers. After every round, give the user the chart's path
+so they can open it.
 Composite (0–100): tried = 40% rubric/60 + 30% judges/30 + 30% not-guilty share; not tried = 50/50 rubric and
 judges (about a 4–2 acquittal; say so). Report in a few lines: top 3, ties, anchor drift, families on the board
 (warn if the top 3 share one family), tokens used.
