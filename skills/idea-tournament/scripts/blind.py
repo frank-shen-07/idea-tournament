@@ -11,8 +11,11 @@ import json, os, random, re, string, sys
 
 STRIP_PAREN = re.compile(r"\s*\([^()]*\b(version|revised|revision|v\d+|trial|iteration|improved|"
                          r"changes the framing|combines|after \w+ (trials|rounds))\b[^()]*\)", re.I)
-DROP_LINE = re.compile(r"(?i)\b(previous|earlier|last) (version|trial|round)\b|\bjury\b|\bjuror|\bcourt\b|"
-                       r"\bacquit|\bguilty\b|\bverdict\b|\brubric\b|/60\b")
+# Sentences about the idea's own history (earlier versions, trials, scores). Domain words like "verdict" or
+# "court" stay: they can be part of the idea itself. Only whole sentences are removed, never whole bullets.
+HISTORY = re.compile(r"(?i)\b(previous|earlier|last|third|fourth|second) (version|trial|round)s?\b|\bjur(y|or|ors)\b|"
+                     r"\bacquitt|\b(found|voted) (not )?guilty\b|\brubric\b|\b\d+/60\b|\bscored \d")
+SENT = re.compile(r"(?<=[.!?])\s+(?=[A-Z\"(])")
 NAME = re.compile(r'^Build "([^"]+)"', re.M)
 
 
@@ -20,7 +23,12 @@ def strip_card(text, new_name):
     m = NAME.search(text)
     name = m.group(1) if m else None
     text = STRIP_PAREN.sub("", text)
-    text = "\n".join(l for l in text.splitlines() if not DROP_LINE.search(l))
+    lines = []
+    for l in text.splitlines():
+        if HISTORY.search(l):
+            l = " ".join(s for s in SENT.split(l) if not HISTORY.search(s))
+        lines.append(l)
+    text = "\n".join(lines)
     if name:
         base = re.sub(r"\s*[:(\-–].*$", "", name).strip()  # "Rent Rebuttal: Counter-Offer" -> "Rent Rebuttal"
         for n in sorted({name, base}, key=len, reverse=True):

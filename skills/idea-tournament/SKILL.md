@@ -20,6 +20,21 @@ Check these are installed before starting. If one is missing, tell the user the 
 
 Optional: Python 3 with matplotlib for the chart (the leaderboard works without it).
 
+## Budget (ask once at the start; default: lean)
+
+Each sub-agent costs roughly 30–40k tokens (it rereads the context, its brief and the cards), so the number of
+agents drives cost. Ask the user which budget to use, and which model sub-agents should run on (the Agent tool's
+`model` setting; `sonnet` is a good default for scorers and jurors, `haiku` is cheapest but noisier).
+
+| Setting | Scoring round | Head-to-head (per pair) | Court trial | Retrial for close calls |
+|---|---|---|---|---|
+| **minimal** | 1 combined scorer (rubric + judge panel in one pass) | done by the scorer, both orders | `--jury 3` | no |
+| **lean** (default) | 3 combined scorers | 2 agents: one per order | `--quick` (6 jurors) | only if the margin is 1 vote |
+| **full** | 3 rubric + 3 judge-panel scorers | 6 agents: 3 judges × both orders | `--quick` | margin ≤ 2 votes or composites within 5 |
+
+A combined scorer writes both `rubric-<x>.json` and `judges-<x>.json` from one reading of the cards. Use **full**
+only for the final decision between the last two or three ideas. Tell the user the agent count before each round.
+
 ## Workspace
 
 Create `idea-lab/` in the project:
@@ -83,7 +98,8 @@ scoring round therefore follows these controls (see "Bias controls" below for wh
    This strips names, version history and trial talk, assigns random IDs and enforces a word cap (default 450;
    shorten any card it rejects, never raise the cap for one idea). Scorers see only `idea-lab/blind/round<N>/<ID>.md`
    and `context.md`, never `key.json`, the ideas folder, earlier scores or the leaderboard.
-3. **Three fresh scorers per kind, every round.** Spawn new agents each round; do not reuse or message old ones.
+3. **Fresh scorers every round** (how many depends on the budget). Spawn new agents each round; do not reuse or
+   message old ones. On lean/minimal, one combined scorer does both briefs below in one pass.
    - **Rubric** (`general-purpose`): "Use the hackathon-idea-evaluator skill to score the cards in <blind dir>
      against <context.md>. Write `idea-lab/scores/round<N>/rubric-<letter>.json` as `{"<ID>": {"novelty": …,
      "total": …}}`. Do not read any other file in idea-lab."
@@ -96,7 +112,7 @@ scoring round therefore follows these controls (see "Bias controls" below for wh
    - Keep the rubric's other anti-inflation rules (novelty cap of 7 unless both framing and technique are new).
    - Ignore length, polish and any self-assessment in the cards.
 4. **Combine:** `python3 <skill base directory>/scripts/scores.py idea-lab <N> rubric` (and `judges`). It takes the
-   median of the three scorers, records the spread, measures anchor drift against the anchors' first scores and
+   median of the scorers, records the spread, measures anchor drift against the anchors' first scores and
    subtracts it, then updates `scores.json`.
 5. **Noise rule:** a difference smaller than the larger of the two ideas' spreads (or 2 rubric points / 1 judge
    point if spreads are zero) is a tie. Say "tie", not "better".
@@ -152,10 +168,10 @@ Each round, pick from:
 improvement. For any challenger, especially a revision of the leader:
 
 ```bash
-python3 <skill base directory>/scripts/pairwise.py setup idea-lab <name> <leader-slug> <challenger-slug> --judges 3
+python3 <skill base directory>/scripts/pairwise.py setup idea-lab <name> <leader-slug> <challenger-slug> --judges <1 lean, 3 full>
 ```
 
-Launch one fresh agent per printed brief (3 judges × both orders). Each judge sees two anonymous cards and picks
+Launch one fresh agent per printed brief (judges × both orders). Each judge sees two anonymous cards and picks
 one; a judge whose pick flips when the order flips counts as a tie. Then run `pairwise.py tally idea-lab <name>`.
 The challenger replaces the leader only if it wins a strict majority of judges **and** does not lose on the
 composite. Otherwise the leader stays, and the revision is kept only as a note of what was tried. Prune when the user asks (common requests:
